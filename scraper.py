@@ -39,6 +39,10 @@ def fetch_ranking() -> list[dict]:
 
         return items
 
+    except httpx.HTTPStatusError as e:
+        print(f"[scraper] http status error: {e.response.status_code}")
+        print(f"[scraper] response: {e.response.text[:500]}")
+        return []
     except httpx.HTTPError as e:
         print(f"[scraper] http error: {e}")
         return []
