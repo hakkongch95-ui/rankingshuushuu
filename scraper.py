@@ -81,6 +81,11 @@ async def fetch_ranking() -> list[dict]:
                     }
                 """)
 
+            if not items:
+                html_snippet = await page.content()
+                print(f"[scraper] page title: {await page.title()}")
+                print(f"[scraper] HTML snippet (first 3000 chars):\n{html_snippet[:3000]}")
+
             await browser.close()
             return [item for item in items if item.get("name")]
 
