@@ -34,7 +34,6 @@ def fetch_ranking() -> list[dict]:
             headers=headers,
             timeout=20,
             follow_redirects=True,
-            http2=True,
         )
         response.raise_for_status()
 
