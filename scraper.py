@@ -27,12 +27,12 @@ def fetch_ranking() -> list[dict]:
         }
 
         # Add delay to avoid rate limiting
-        time.sleep(2)
+        time.sleep(3)
 
         response = httpx.get(
             RAKUTEN_RANKING_URL,
             headers=headers,
-            timeout=20,
+            timeout=30,
             follow_redirects=True,
         )
         response.raise_for_status()
