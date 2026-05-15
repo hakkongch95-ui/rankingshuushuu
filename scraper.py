@@ -1,50 +1,81 @@
-import os
 import httpx
+from bs4 import BeautifulSoup
 
-RAKUTEN_API_URL = "https://app.rakuten.co.jp/services/api/IchibaItem/Ranking/20170628"
+RAKUTEN_RANKING_URL = "https://ranking.rakuten.co.jp/"
 
 
 def fetch_ranking() -> list[dict]:
-    app_id = os.environ.get("RAKUTEN_APP_ID")
-    if not app_id:
-        print("[scraper] RAKUTEN_APP_ID not set")
-        return []
-
     try:
-        params = {
-            "applicationId": app_id,
-            "format": "json",
-            "genreId": 0,
-            "page": 1,
+        headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept-Language": "ja-JP,ja;q=0.9",
         }
 
-        response = httpx.get(RAKUTEN_API_URL, params=params, timeout=10)
+        response = httpx.get(
+            RAKUTEN_RANKING_URL, headers=headers, timeout=15, follow_redirects=True
+        )
         response.raise_for_status()
-        data = response.json()
+
+        soup = BeautifulSoup(response.text, "html.parser")
 
         items = []
-        for idx, item in enumerate(data.get("Items", [])):
+        # Rakuten ranking page structure: look for ranking items
+        ranking_items = soup.find_all(
+            class_=lambda x: x and any(
+                keyword in x.lower() for keyword in ["ranking", "item", "product"]
+            )
+        )
+
+        for idx, item in enumerate(ranking_items[:15]):
             if idx >= 10:
                 break
 
+            # Extract rank
+            rank_elem = item.find(class_=lambda x: x and "rank" in x.lower())
+            rank = rank_elem.get_text(strip=True) if rank_elem else str(idx + 1)
+
+            # Extract product name and link
+            link_elem = item.find("a", href=True)
+            if not link_elem:
+                continue
+
+            name = link_elem.get_text(strip=True)
+            url = link_elem.get("href", "")
+            if url and not url.startswith("http"):
+                url = "https://ranking.rakuten.co.jp" + url
+
+            # Extract price
+            price_elem = item.find(class_=lambda x: x and "price" in x.lower())
+            price = price_elem.get_text(strip=True) if price_elem else ""
+
+            # Extract image
+            img_elem = item.find("img")
+            image = img_elem.get("src", "") if img_elem else ""
+
             items.append(
                 {
-                    "rank": str(idx + 1),
-                    "name": item.get("Item", {}).get("itemName", ""),
-                    "price": f"¥{item.get('Item', {}).get('itemPrice', '')}",
-                    "url": item.get("Item", {}).get("itemUrl", ""),
-                    "image": item.get("Item", {}).get("smallImageUrl", ""),
+                    "rank": rank,
+                    "name": name[:60] if name else "(無し)",
+                    "price": price,
+                    "url": url,
+                    "image": image,
                 }
             )
+
+        if items:
+            print(f"[scraper] fetched {len(items)} items from HTML")
+        else:
+            print(f"[scraper] no items found in HTML")
+            print(f"[scraper] page status: {response.status_code}")
 
         return items
 
     except httpx.HTTPStatusError as e:
         print(f"[scraper] http status error: {e.response.status_code}")
-        print(f"[scraper] response: {e.response.text[:500]}")
-        return []
-    except httpx.HTTPError as e:
-        print(f"[scraper] http error: {e}")
         return []
     except Exception as e:
         print(f"[scraper] error: {e}")
